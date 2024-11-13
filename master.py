@@ -157,7 +157,7 @@ class Master:
                                 self.node_pipes[node_id].send(instruction)
             time.sleep(1)
 
-    def __init__(self, node_quantity):
+    def __init__(self, node_quantity, node_capacities):
         self.node_processes = {}  # NodeID: Process
         self.node_pipes = {}  # NodeID: Pipe for heartbeat
         self.resources = {}
@@ -170,7 +170,7 @@ class Master:
         print(f"Master process ID: {os.getpid()}")
         self.master_queue = deque()
         for node_id in range(node_quantity):
-            self.__create_node(node_id)
+            self.__create_node(node_id, node_capacities[node_id])
             self.current_node = node_id
 
         # Start a thread to check the status of the nodes

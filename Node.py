@@ -64,6 +64,7 @@ class Node:
         #         break  # Rompe el bucle en caso de cierre del socket
 
     def send_heartbeat(self):
-        # Send a heartbeat message to the master process
-        self.hearbeat.send(HEARTBEAT)
-        time.sleep(5)
+        while True:
+            # Send a heartbeat message to the master process
+            self.heartbeat.send(HEARTBEAT)
+            time.sleep(5)
