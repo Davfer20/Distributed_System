@@ -14,6 +14,7 @@ def initialize_node(node_id, pipe, heartbeat, idle):
     node = Node(
         node_id, pipe, heartbeat, idle
     )  # Create an instance of Node with the given ID
+    node.listen()  # Start listening for messages from the master process
 
 
 class Master:
@@ -23,8 +24,28 @@ class Master:
 
         # Define Flask route for sending messages to nodes
         @self.app.route("/send/<int:node_id>", methods=["POST"])
-        def send_message(node_id):
+        def send_instruction_to_node(node_id):
             if node_id not in self.node_pipes:
+                return jsonify({"error": "Node ID not found"}), 404
+            type = request.json.get("type")
+            command = request.json.get("command")
+            if not command or not type:
+                return jsonify({"error": "Message content is missing"}), 400
+            instruction = Instruction(type, command)
+
+            # Send message to the specified node
+            self.node_pipes[node_id].send(instruction)
+            # Wait for the node to respond (can add timeout if necessary)
+            if self.node_pipes[node_id].poll(timeout=60):  # Timeout in seconds
+                response = self.node_pipes[node_id].recv()
+                return jsonify({"node_id": node_id, "response": response})
+            else:
+                return jsonify({"error": "No response from node"}), 504
+
+        @self.app.route("/send", methods=["POST"])
+        def send_instruction():
+            
+            if  not in self.node_pipes:
                 return jsonify({"error": "Node ID not found"}), 404
             type = request.json.get("type")
             command = request.json.get("command")
@@ -91,6 +112,7 @@ class Master:
         self.node_tasks = {}  # Dict for current task.
         self.node_idleness = {}  # Dict for node idleness
         self.node_queues = {}  # Dict for node queues
+        self.node_heartbeats = {}  # Dict for node heartbeats
         print(f"Master process ID: {os.getpid()}")
 
         for node_id in range(node_quantity):

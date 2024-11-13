@@ -31,15 +31,22 @@ class Node:
                     instruction = self.pipe.recv()
                     if instruction.type == "STOP":
                         break  # Exit the loop if stop signal received
+                    response = ""
                     if instruction.type == "python":
                         try:
-                            exec(instruction.command)
+                            response = exec(instruction.command)
                         except Exception as e:
-                            print(
-                                f"Node {self.nodeId}: The code executed produced an error. {e}"
-                            )
+                            response = f"Node {self.nodeId}: The code executed produced an error. {e}"
+
+                    elif instruction.type == "shell":
+                        try:
+                            response = os.system(instruction.command)
+                        except Exception as e:
+                            response = f"Node {self.nodeId}: The shell command produced an error. {e}"
+                    else:
+                        response = f"Node {self.nodeId}: Unknown instruction received."
                     # Here you could process messages and perhaps send a response
-                    response = f"Node {self.nodeId} processed message: {message}"
+                    print(response)
                     self.pipe.send(response)
         except BrokenPipeError:
             print(f"Node {self.nodeId}: Pipe was closed unexpectedly.")
