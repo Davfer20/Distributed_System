@@ -1,7 +1,9 @@
 # Node.py
-import socket
 import threading
 import os
+import time
+
+HEARTBEAT = True
 
 
 class Node:
@@ -9,26 +11,24 @@ class Node:
         self.escuchando = False  # Controla el bucle de escucha
         self.nodeId = nodeId
         self.pipe = pipe
+        self.heartbeat = heartbeat
         self.idle = idle
         self.idle.set()
         print(os.getpid())
 
-    def iniciar_nodo(self):
-        self.escuchando = True
-        self.socket.bind((self.host, self.port))
-        self.socket.listen()
-        print(f"Nodo iniciado en {self.host}:{self.port}")
+        heartbeat_thread = threading.Thread(target=self.send_heartbeat)
+        heartbeat_thread.daemon = True
+        heartbeat_thread.start()
 
-        # Ejecuta la escucha en un hilo separado
-        threading.Thread(target=self.escuchar_mensajes).start()
+        self.listen()
 
     def listen(self):
-
         # Example loop to keep checking for messages from the master process
         try:
             while True:
                 if self.pipe.poll():  # Check if there’s any data sent from the parent
                     instruction = self.pipe.recv()
+                    self.idle.clear()
                     if instruction.type == "STOP":
                         break  # Exit the loop if stop signal received
                     response = ""
@@ -48,6 +48,7 @@ class Node:
                     # Here you could process messages and perhaps send a response
                     print(response)
                     self.pipe.send(response)
+                    self.idle.set()
         except BrokenPipeError:
             print(f"Node {self.nodeId}: Pipe was closed unexpectedly.")
         # while self.escuchando:
@@ -62,15 +63,7 @@ class Node:
         #     except socket.error:
         #         break  # Rompe el bucle en caso de cierre del socket
 
-    def enviar_mensaje(self, target_host, target_port, mensaje):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((target_host, target_port))
-            s.sendall(mensaje.encode())
-            response = s.recv(1024).decode()
-            print(f"Respuesta recibida: {response}")
-
-    def cerrar_nodo(self):
-        """Método para cerrar el nodo y detener la escucha."""
-        self.escuchando = False
-        self.socket.close()
-        print("Nodo cerrado.")
+    def send_heartbeat(self):
+        # Send a heartbeat message to the master process
+        self.hearbeat.send(HEARTBEAT)
+        time.sleep(5)

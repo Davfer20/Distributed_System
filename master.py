@@ -1,4 +1,5 @@
 import multiprocessing
+import threading
 from flask import Flask, request, jsonify
 from Node import Node
 import os
@@ -14,7 +15,6 @@ def initialize_node(node_id, pipe, heartbeat, idle):
     node = Node(
         node_id, pipe, heartbeat, idle
     )  # Create an instance of Node with the given ID
-    node.listen()  # Start listening for messages from the master process
 
 
 class Master:
@@ -42,6 +42,7 @@ class Master:
             else:
                 return jsonify({"error": "No response from node"}), 504
 
+        # Define Flask route for sending messages to the master
         @self.app.route("/send", methods=["POST"])
         def receive_instruction():
             type = request.json.get("type")
@@ -61,21 +62,6 @@ class Master:
             self.node_processes[node_id].join()  # Wait for process to exit
             return jsonify({"message": f"Node {node_id} stopped successfully"})
 
-    def select_next_node(self):
-        # Select the next node to send a task to
-        if self.standby:
-            return None
-        if not self.node_idleness:
-            return None
-        self.current_node = self.current_node + 1 % len(self.node_processes)
-
-    def add_task_to_node(self):
-        self.select_next_node()
-        instruction = self.master_queue.popleft()
-        # Send message to the specified node
-        self.node_queues[self.current_node].append(instruction)
-        self.node_pipes[self.current_node].send(instruction)
-
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
         idle = multiprocessing.Event()
@@ -92,6 +78,13 @@ class Master:
         self.node_idleness[node_id] = idle
         process.start()
 
+    def __requeue_tasks(self, node_id):
+        # Requeue tasks from the specified node
+        queue = self.node_queues[node_id]
+        while queue:
+            instruction = queue.pop()
+            self.master_queue.appendleft(instruction)
+
     def __check_nodes_status(self, timeout=10):
         last_heartbeat = {i: time.time() for i in range(len(self.node_heartbeats))}
         # Check if nodes are still running
@@ -106,9 +99,62 @@ class Master:
             for node_id, last_time in last_heartbeat.items():
                 if current_time - last_time > timeout:
                     print(f"Node {node_id} is not responding")
-                    # TODO: Reload queue
+                    self.__requeue_tasks(node_id)
                     # Restart the node
                     self.__create_node(node_id)
+            time.sleep(1)
+
+    def select_next_node(self):
+        # Select the next node to send a task to
+        # Implement a simple round-robin scheduling algorithm
+        count = 0
+        while True:
+            self.current_node = self.current_node + 1 % len(self.node_processes)
+            count += 1
+            if (
+                len(self.node_queues[self.current_node])
+                < self.node_queues[self.current_node].maxlen
+            ):
+                break
+            if count == len(self.node_processes):
+                time.sleep(2)
+                count = 0
+
+    def add_task_to_node(self):
+        self.select_next_node()
+        instruction = self.master_queue.popleft()
+        # Send message to the specified node
+        self.node_queues[self.current_node].append(instruction)
+
+    def __distribute_tasks(self):
+        while True:
+            if self.master_queue:
+                self.add_task_to_node()
+            else:
+                time.sleep(1)
+
+    def __assign_tasks(self):
+        while True:
+            for node_id, idle in self.node_idleness.items():
+                if idle.is_set():  # If node is idle
+                    queue = self.node_queues[node_id]
+                    if self.node_pipes[
+                        node_id
+                    ].poll():  # Check if there’s any data sent from the worker
+                        # Print the response from the node
+                        response = self.node_pipes[node_id].recv()
+                        print(response)
+                        queue.popleft()
+                    if queue:
+                        instruction = queue[0]
+                        self.node_pipes[node_id].send(instruction)
+                    else:
+                        # Steal work from other queues
+                        for other_queue in self.node_queues.values():
+                            if len(other_queue) > 1:
+                                instruction = other_queue.pop()
+                                queue.append(instruction)
+                                self.node_pipes[node_id].send(instruction)
             time.sleep(1)
 
     def __init__(self, node_quantity):
@@ -127,6 +173,22 @@ class Master:
             self.__create_node(node_id)
             self.current_node = node_id
 
+        # Start a thread to check the status of the nodes
+        check_thread = threading.Thread(target=self.__check_nodes_status)
+        check_thread.daemon = True
+        check_thread.start()
+
+        # Start a thread to distribute tasks to nodes
+        distribute_thread = threading.Thread(target=self.__distribute_tasks)
+        distribute_thread.daemon = True
+        distribute_thread.start()
+
+        # Start a thread to assign tasks to nodes
+        assign_thread = threading.Thread(target=self.__assign_tasks)
+        assign_thread.daemon = True
+        assign_thread.start()
+
+        # Initialize the Flask server
         self.__initialize_server()
 
     def run(self):
