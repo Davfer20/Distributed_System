@@ -69,17 +69,12 @@ class Master:
             return None
         self.current_node = self.current_node + 1 % len(self.node_processes)
 
-    def send_instruction(self, request):
+    def add_task_to_node(self):
         self.select_next_node()
-
+        instruction = self.master_queue.popleft()
         # Send message to the specified node
+        self.node_queues[self.current_node].append(instruction)
         self.node_pipes[self.current_node].send(instruction)
-        # Wait for the node to respond (can add timeout if necessary)
-        if self.node_pipes[self.current_node].poll(timeout=60):  # Timeout in seconds
-            response = self.node_pipes[self.current_node].recv()
-            return jsonify({"node_id": self.current_node, "response": response})
-        else:
-            return jsonify({"error": "No response from node"}), 504
 
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
@@ -115,8 +110,6 @@ class Master:
                     # Restart the node
                     self.__create_node(node_id)
             time.sleep(1)
-
-    
 
     def __init__(self, node_quantity):
         self.node_processes = {}  # NodeID: Process
