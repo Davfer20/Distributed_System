@@ -4,11 +4,16 @@ from Node import Node
 import os
 import time
 from collections import deque
+from Instruction import Instruction
+
+HEARTBEAT = True
 
 
-def initialize_node(node_id, pipe):
+def initialize_node(node_id, pipe, heartbeat, idle):
     # This function initializes the Node instance
-    node = Node(node_id, pipe)  # Create an instance of Node with the given ID
+    node = Node(
+        node_id, pipe, heartbeat, idle
+    )  # Create an instance of Node with the given ID
 
 
 class Master:
@@ -21,14 +26,16 @@ class Master:
         def send_message(node_id):
             if node_id not in self.node_pipes:
                 return jsonify({"error": "Node ID not found"}), 404
-            message = request.json.get("message")
-            if not message:
+            type = request.json.get("type")
+            command = request.json.get("command")
+            if not command or not type:
                 return jsonify({"error": "Message content is missing"}), 400
+            instruction = Instruction(type, command)
 
             # Send message to the specified node
-            self.node_pipes[node_id].send(message)
+            self.node_pipes[node_id].send(instruction)
             # Wait for the node to respond (can add timeout if necessary)
-            if self.node_pipes[node_id].poll(timeout=5):  # Timeout in seconds
+            if self.node_pipes[node_id].poll(timeout=60):  # Timeout in seconds
                 response = self.node_pipes[node_id].recv()
                 return jsonify({"node_id": node_id, "response": response})
             else:
@@ -44,23 +51,61 @@ class Master:
             self.node_processes[node_id].join()  # Wait for process to exit
             return jsonify({"message": f"Node {node_id} stopped successfully"})
 
+    def __start_node(self, node_id):
+        # Create each process to initialize a Node instance in that process
+        idle = multiprocessing.Event()
+        parent_pipe, child_pipe = multiprocessing.Pipe()
+        parent_heartbeat, child_heartbeat = multiprocessing.Pipe(False)
+        process = multiprocessing.Process(
+            target=initialize_node,
+            args=(node_id, child_pipe, child_heartbeat, idle),
+        )
+        self.node_processes[node_id] = process
+        self.node_pipes[node_id] = parent_pipe
+        self.node_heartbeats[node_id] = parent_heartbeat
+        self.node_queues[node_id] = []
+        process.start()
+
+    def __check_nodes_status(self, timeout=10):
+        last_heartbeat = {i: time.time() for i in range(len(self.node_pipes))}
+        # Check if nodes are still running
+        while True:
+            for i, pipe in enumerate(self.node_heartbeats):
+                if pipe.poll():
+                    message = pipe.recv()
+                    if message == HEARTBEAT:
+                        last_heartbeat[i] = time.time()
+
+            current_time = time.time()
+            for node_id, last_time in last_heartbeat.items():
+                if current_time - last_time > timeout:
+                    print(f"Node {node_id} is not responding")
+                    # Restart the node
+                    self.__start_node(node_id)
+
     def __init__(self, node_quantity):
         self.node_processes = {}  # NodeID: Process
-        self.node_loads = {}  # NodeID: list of requests
-        self.node_pipes = {}  # NodeID: Pipe
+        self.node_pipes = {}  # NodeID: Pipe for heartbeat
         self.resources = {}
         self.standby = False
+        self.node_tasks = {}  # Dict for current task.
+        self.node_idleness = {}  # Dict for node idleness
+        self.node_queues = {}  # Dict for node queues
         print(f"Master process ID: {os.getpid()}")
 
-        for i in range(node_quantity):
+        for node_id in range(node_quantity):
             # Create each process to initialize a Node instance in that process
+            idle = multiprocessing.Event()
             parent_pipe, child_pipe = multiprocessing.Pipe()
+            parent_heartbeat, child_heartbeat = multiprocessing.Pipe(False)
             process = multiprocessing.Process(
-                target=initialize_node, args=(i, child_pipe)
+                target=initialize_node,
+                args=(node_id, child_pipe, child_heartbeat, idle),
             )
-            self.node_processes[i] = process
-            self.node_pipes[i] = parent_pipe
-            self.node_loads[i] = deque()
+            self.node_processes[node_id] = process
+            self.node_pipes[node_id] = parent_pipe
+            self.node_heartbeats[node_id] = parent_heartbeat
+            self.node_queues[node_id] = []
             process.start()
 
         self.__initialize_server()

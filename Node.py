@@ -2,14 +2,15 @@
 import socket
 import threading
 import os
-from collections import deque
 
 
 class Node:
-    def __init__(self, nodeId, pipe):
+    def __init__(self, nodeId, pipe, heartbeat, idle):
         self.escuchando = False  # Controla el bucle de escucha
         self.nodeId = nodeId
         self.pipe = pipe
+        self.idle = idle
+        self.idle.set()
         print(os.getpid())
 
     def iniciar_nodo(self):
@@ -24,14 +25,24 @@ class Node:
     def listen(self):
 
         # Example loop to keep checking for messages from the master process
-        while True:
-            if self.pipe.poll():  # Check if there’s any data sent from the parent
-                message = self.pipe.recv()
-                if message == "STOP":
-                    break  # Exit the loop if stop signal received
-                # Here you could process messages and perhaps send a response
-                response = f"Node {self.nodeId} processed message: {message}"
-                self.pipe.send(response)
+        try:
+            while True:
+                if self.pipe.poll():  # Check if there’s any data sent from the parent
+                    instruction = self.pipe.recv()
+                    if instruction.type == "STOP":
+                        break  # Exit the loop if stop signal received
+                    if instruction.type == "python":
+                        try:
+                            exec(instruction.command)
+                        except Exception as e:
+                            print(
+                                f"Node {self.nodeId}: The code executed produced an error. {e}"
+                            )
+                    # Here you could process messages and perhaps send a response
+                    response = f"Node {self.nodeId} processed message: {message}"
+                    self.pipe.send(response)
+        except BrokenPipeError:
+            print(f"Node {self.nodeId}: Pipe was closed unexpectedly.")
         # while self.escuchando:
         #     try:
         #         conn, addr = self.socket.accept()
