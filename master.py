@@ -24,7 +24,7 @@ class Master:
 
         # Define Flask route for sending messages to nodes
         @self.app.route("/send/<int:node_id>", methods=["POST"])
-        def send_instruction_to_node(node_id):
+        def receive_instruction_for_node(node_id):
             if node_id not in self.node_pipes:
                 return jsonify({"error": "Node ID not found"}), 404
             type = request.json.get("type")
@@ -43,24 +43,13 @@ class Master:
                 return jsonify({"error": "No response from node"}), 504
 
         @self.app.route("/send", methods=["POST"])
-        def send_instruction():
-            
-            if  not in self.node_pipes:
-                return jsonify({"error": "Node ID not found"}), 404
+        def receive_instruction():
             type = request.json.get("type")
             command = request.json.get("command")
             if not command or not type:
                 return jsonify({"error": "Message content is missing"}), 400
             instruction = Instruction(type, command)
-
-            # Send message to the specified node
-            self.node_pipes[node_id].send(instruction)
-            # Wait for the node to respond (can add timeout if necessary)
-            if self.node_pipes[node_id].poll(timeout=60):  # Timeout in seconds
-                response = self.node_pipes[node_id].recv()
-                return jsonify({"node_id": node_id, "response": response})
-            else:
-                return jsonify({"error": "No response from node"}), 504
+            self.master_queue.append(instruction)
 
         # Define Flask route for stopping nodes
         @self.app.route("/stop/<int:node_id>", methods=["POST"])
@@ -71,6 +60,26 @@ class Master:
             self.node_pipes[node_id].send("STOP")
             self.node_processes[node_id].join()  # Wait for process to exit
             return jsonify({"message": f"Node {node_id} stopped successfully"})
+
+    def select_next_node(self):
+        # Select the next node to send a task to
+        if self.standby:
+            return None
+        if not self.node_idleness:
+            return None
+        self.current_node = self.current_node + 1 % len(self.node_processes)
+
+    def send_instruction(self, request):
+        self.select_next_node()
+
+        # Send message to the specified node
+        self.node_pipes[self.current_node].send(instruction)
+        # Wait for the node to respond (can add timeout if necessary)
+        if self.node_pipes[self.current_node].poll(timeout=60):  # Timeout in seconds
+            response = self.node_pipes[self.current_node].recv()
+            return jsonify({"node_id": self.current_node, "response": response})
+        else:
+            return jsonify({"error": "No response from node"}), 504
 
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
@@ -118,10 +127,12 @@ class Master:
         self.node_idleness = {}  # Dict for node idleness
         self.node_queues = {}  # Dict for node queues
         self.node_heartbeats = {}  # Dict for node heartbeats
+        self.current_node = None
         print(f"Master process ID: {os.getpid()}")
         self.master_queue = deque()
         for node_id in range(node_quantity):
             self.__create_node(node_id)
+            self.current_node = node_id
 
         self.__initialize_server()
 
