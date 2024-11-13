@@ -10,16 +10,6 @@ def initialize_node(node_id, pipe):
     # This function initializes the Node instance
     node = Node(node_id, pipe)  # Create an instance of Node with the given ID
 
-    # Example loop to keep checking for messages from the master process
-    while True:
-        if pipe.poll():  # Check if there’s any data sent from the parent
-            message = pipe.recv()
-            if message == "STOP":
-                break  # Exit the loop if stop signal received
-            # Here you could process messages and perhaps send a response
-            response = f"Node {node_id} processed message: {message}"
-            pipe.send(response)
-
 
 class Master:
     def __initialize_server(self):
@@ -68,10 +58,9 @@ class Master:
             process = multiprocessing.Process(
                 target=initialize_node, args=(i, child_pipe)
             )
-            pid = process.pid
-            self.node_processes[pid] = process
-            self.node_pipes[pid] = parent_pipe
-            self.node_loads[pid] = deque()
+            self.node_processes[i] = process
+            self.node_pipes[i] = parent_pipe
+            self.node_loads[i] = deque()
             process.start()
 
         self.__initialize_server()
@@ -79,7 +68,7 @@ class Master:
     def run(self):
         if self.app:
             # Run Flask app
-            self.app.run(port=5000, debug=True)
+            self.app.run(port=5000)
 
 
 # Example usage

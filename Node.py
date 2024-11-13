@@ -2,13 +2,11 @@
 import socket
 import threading
 import os
+from collections import deque
 
 
 class Node:
     def __init__(self, nodeId, pipe):
-        self.host = "localhost"
-        self.port = 3000
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.escuchando = False  # Controla el bucle de escucha
         self.nodeId = nodeId
         self.pipe = pipe
