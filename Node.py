@@ -2,8 +2,17 @@
 import threading
 import os
 import time
+import logging
+import sys
 
 HEARTBEAT = True
+
+# Configure the logger
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 class Node:
@@ -14,7 +23,9 @@ class Node:
         self.heartbeat = heartbeat
         self.idle = idle
         self.idle.set()
-        print(os.getpid())
+        self.logger = logging.getLogger(f"Node {self.nodeId}-{os.getpid()}")
+
+        self.logger.info(f"Node created: {os.getpid()}")
 
         heartbeat_thread = threading.Thread(target=self.send_heartbeat)
         heartbeat_thread.daemon = True
@@ -30,7 +41,7 @@ class Node:
                     instruction = self.pipe.recv()
                     self.idle.clear()
                     if instruction.type == "STOP":
-                        break  # Exit the loop if stop signal received
+                        sys.exit()  # Exit the loop if stop signal received
                     response = ""
                     if instruction.type == "python":
                         try:
@@ -46,7 +57,7 @@ class Node:
                     else:
                         response = f"Node {self.nodeId}: Unknown instruction received."
                     # Here you could process messages and perhaps send a response
-                    print(response)
+                    self.logger.info(response)
                     self.pipe.send(response)
                     self.idle.set()
         except BrokenPipeError:
@@ -66,5 +77,6 @@ class Node:
     def send_heartbeat(self):
         while True:
             # Send a heartbeat message to the master process
-            self.heartbeat.send(HEARTBEAT)
+            self.heartbeat.value = time.time()
+            self.logger.info("Heartbeat sent")
             time.sleep(5)
