@@ -361,7 +361,7 @@ class Master:
             if not self.resource_in_use[node_id]:
                 del self.resource_in_use[node_id]
 
-    async def handle_read_request(self, node_id, resource, resource_pipe):
+    def handle_read_request(self, node_id, resource, resource_pipe):
         self.request_read_resource(node_id, resource)
         # If node died during wait, release the resource
         if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
@@ -370,7 +370,7 @@ class Master:
         else:
             self.release_read_resource(node_id, resource)
 
-    async def handle_write_request(self, node_id, resource, resource_pipe):
+    def handle_write_request(self, node_id, resource, resource_pipe):
         self.request_write_resource(node_id, resource)
         # If node died during wait, release the resource
         if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
@@ -396,12 +396,19 @@ class Master:
                         )
                         continue
                     if type == "request_read":
-                        self.handle_read_request(node_id, resource, resource_pipe)
+                        threading.Thread(
+                            target=self.handle_read_request,
+                            args=(node_id, resource, resource_pipe),
+                        ).start()
+
                     elif type == "release_read":
                         self.release_read_resource(node_id, resource)
                         resource_pipe.send({"status": "released_read"})
                     elif type == "request_write":
-                        self.handle_write_request(node_id, resource, resource_pipe)
+                        threading.Thread(
+                            target=self.handle_write_request,
+                            args=(node_id, resource, resource_pipe),
+                        ).start()
                     elif type == "release_write":
                         self.release_write_resource(node_id, resource)
                         resource_pipe.send({"status": "released_write"})
