@@ -9,7 +9,7 @@ HEARTBEAT = True
 
 # Configure the logger
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -45,7 +45,12 @@ class Node:
                     response = ""
                     if instruction.type == "python":
                         try:
-                            response = exec(instruction.command)
+                            print(instruction.command)
+                            exec_locals = {}
+                            exec(instruction.command, exec_locals)
+                            response = exec_locals.get(
+                                "response", "No result retruned."
+                            )
                         except Exception as e:
                             response = f"Node {self.nodeId}: The code executed produced an error. {e}"
 
@@ -78,5 +83,5 @@ class Node:
         while True:
             # Send a heartbeat message to the master process
             self.heartbeat.value = time.time()
-            self.logger.info("Heartbeat sent")
+            self.logger.debug("Heartbeat sent")
             time.sleep(5)
