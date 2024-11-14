@@ -4,6 +4,7 @@ import os
 import time
 import logging
 import sys
+import traceback
 
 HEARTBEAT = True
 
@@ -16,13 +17,14 @@ logging.basicConfig(
 
 
 class Node:
-    def __init__(self, nodeId, pipe, heartbeat, idle):
+    def __init__(self, nodeId, pipe, heartbeat, idle, resource_pipe):
         self.escuchando = False  # Controla el bucle de escucha
         self.nodeId = nodeId
         self.pipe = pipe
         self.heartbeat = heartbeat
         self.idle = idle
         self.idle.set()
+        self.resource_pipe = resource_pipe
         self.logger = logging.getLogger(f"Node {self.nodeId}-{os.getpid()}")
 
         self.logger.info(f"Node created: {os.getpid()}")
@@ -46,13 +48,19 @@ class Node:
                     if instruction.type == "python":
                         try:
                             print(instruction.command)
-                            exec_locals = {}
-                            exec(instruction.command, exec_locals)
+                            exec_locals = {
+                                "request_read_resource": self.request_read_resource,
+                                "release_read_resource": self.release_read_resource,
+                                "request_write_resource": self.request_write_resource,
+                                "release_write_resource": self.release_write_resource,
+                            }
+                            exec(instruction.command, {}, exec_locals)
                             response = exec_locals.get(
                                 "response", "No result retruned."
                             )
                         except Exception as e:
-                            response = f"Node {self.nodeId}: The code executed produced an error. {e}"
+                            error_details = traceback.format_exc()
+                            response = f"Node {self.nodeId}: The code executed produced an error. {error_details}"
 
                     elif instruction.type == "shell":
                         try:
@@ -67,17 +75,6 @@ class Node:
                     self.idle.set()
         except BrokenPipeError:
             print(f"Node {self.nodeId}: Pipe was closed unexpectedly.")
-        # while self.escuchando:
-        #     try:
-        #         conn, addr = self.socket.accept()
-        #         print(f"Conexión establecida con {addr}")
-        #         data = conn.recv(1024).decode()
-        #         if data:
-        #             print(f"Mensaje recibido: {data}")
-        #             conn.sendall(b"Mensaje recibido")
-        #         conn.close()
-        #     except socket.error:
-        #         break  # Rompe el bucle en caso de cierre del socket
 
     def send_heartbeat(self):
         while True:
@@ -85,3 +82,23 @@ class Node:
             self.heartbeat.value = time.time()
             self.logger.debug("Heartbeat sent")
             time.sleep(5)
+
+    def request_read_resource(self, resource):
+        self.resource_pipe.send({"type": "request_read", "resource": resource})
+        response = self.resource_pipe.recv()
+        if response["status"] != "error":
+            return response["resource"]
+        return None
+
+    def release_read_resource(self, resource):
+        self.resource_pipe.send({"type": "release_read", "resource": resource})
+
+    def request_write_resource(self, resource):
+        self.resource_pipe.send({"type": "request_write", "resource": resource})
+        response = self.resource_pipe.recv()
+        if response["status"] != "error":
+            return response["resource"]
+        return None
+
+    def release_write_resource(self, resource):
+        self.resource_pipe.send({"type": "release_write", "resource": resource})

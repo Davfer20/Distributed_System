@@ -7,6 +7,7 @@ import time
 from collections import deque
 from Instruction import Instruction
 import logging
+from ReadWriteLock import ReadWriteLock
 
 HEARTBEAT = True
 
@@ -18,10 +19,10 @@ logging.basicConfig(
 )
 
 
-def initialize_node(node_id, pipe, heartbeat, idle):
+def initialize_node(node_id, pipe, heartbeat, idle, resource_pipe):
     # This function initializes the Node instance
     node = Node(
-        node_id, pipe, heartbeat, idle
+        node_id, pipe, heartbeat, idle, resource_pipe
     )  # Create an instance of Node with the given ID
 
 
@@ -67,14 +68,75 @@ class Master:
             self.node_processes[node_id].terminate()
             return jsonify({"message": f"Node {node_id} stopped successfully"})
 
+        # Create resource
+        @self.app.route("/resource", methods=["POST"])
+        def create_resource():
+            # The resource request will have
+            # Type: File/String/Integer/Float/Boolean/List/Dictionary/Tuple
+            # Name:
+            # Value:
+            resource_name = request.json.get("name")
+            resource_type = request.json.get("type")
+            values = request.json.get("values", {})
+            if not resource_name or not resource_type or not values:
+                return jsonify({"error": "A resource field is missing."}), 400
+            self.resources[resource_name] = None
+            self.resource_locks[resource_name] = ReadWriteLock()
+            # Create a shared resource based on type
+            if resource_type == "File":
+                file_path = values.get("path", "README.md")
+                resource = {
+                    "type": "File",
+                    "path": file_path,
+                    "mode": values.get("mode", "w+"),
+                }
+            elif resource_type == "String":
+                initial_value = values.get("initial_value", "")
+                resource = self.manager.Value("s", initial_value)
+            elif resource_type == "Integer":
+                initial_value = values.get("initial_value", 0)
+                resource = self.manager.Value("i", initial_value)
+            elif resource_type == "Float":
+                initial_value = values.get("initial_value", 0.0)
+                resource = self.manager.Value(
+                    "d", initial_value
+                )  # 'd' is for double precision float
+            elif resource_type == "Boolean":
+                initial_value = values.get("initial_value", False)
+                resource = self.manager.Value("b", initial_value)
+            elif resource_type == "List":
+                initial_list = values.get("initial_value", [])
+                resource = self.manager.list(initial_list)
+            elif resource_type == "Dictionary":
+                initial_dict = values.get("initial_value", {})
+                resource = self.manager.dict(initial_dict)
+            elif resource_type == "Tuple":
+                initial_tuple = tuple(values.get("initial_value", ()))
+                resource = self.manager.list(
+                    initial_tuple
+                )  # Lists can emulate shared tuples
+            else:
+                return jsonify({"error": "Unsupported resource type"}), 400
+
+            # Store resource in shared dictionary
+            self.resources[resource_name] = {
+                "type": resource_type,
+                "resource": resource,
+            }
+            logging.info(f"Resource {resource_name} of type {resource_type} created.")
+            return jsonify(
+                {"message": f"Resource {resource_name} created successfully"}
+            )
+
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
         idle = multiprocessing.Event()
         parent_pipe, child_pipe = multiprocessing.Pipe()
         child_heartbeat = multiprocessing.Value("d", time.time())
+        parent_resource_pipe, child_resource_pipe = multiprocessing.Pipe()
         process = multiprocessing.Process(
             target=initialize_node,
-            args=(node_id, child_pipe, child_heartbeat, idle),
+            args=(node_id, child_pipe, child_heartbeat, idle, child_resource_pipe),
         )
         self.node_processes[node_id] = process
         self.node_pipes[node_id] = parent_pipe
@@ -82,6 +144,7 @@ class Master:
         self.node_queues[node_id] = deque(maxlen=max_capacity)
         self.node_idleness[node_id] = idle
         self.active_nodes[node_id] = True
+        self.resource_pipes[node_id] = parent_resource_pipe
         process.start()
 
     def __requeue_tasks(self, node_id):
@@ -108,7 +171,16 @@ class Master:
                         self.active_nodes[node_id] = False
                         # self.logger.info(f"1 Status: {self.active_nodes[node_id]}")
                         self.__requeue_tasks(node_id)
-
+                        # Release held resources
+                        if node_id in self.resource_in_use:
+                            resources_held = list(
+                                self.resource_in_use[node_id]
+                            )  # Copy to avoid modification during iteration
+                            for resource in resources_held:
+                                self.release_resource(node_id, resource)
+                                self.logger.info(
+                                    f"Node {node_id} released resource {resource}"
+                                )
                         # Restart the node and update the heartbeat value
                         self.__create_node(node_id, self.node_queues[node_id].maxlen)
                         self.logger.info(f"Node {node_id} restarted.")
@@ -198,7 +270,6 @@ class Master:
             raise ValueError("Node quantity must be at least 1")
         self.node_processes = {}  # NodeID: Process
         self.node_pipes = {}  # NodeID: Pipe for heartbeat
-        self.resources = {}
 
         self.node_idleness = {}  # Dict for node idleness
         self.node_queues = {}  # Dict for node queues
@@ -208,13 +279,19 @@ class Master:
         self.logger = logging.getLogger("Master")
         self.logger.info(f"Master process ID: {os.getpid()}")
         self.master_queue = deque()
+        self.resource_locks = {}
+        self.resource_in_use = {}
+        self.resource_pipes = {}
+        self.manager = multiprocessing.Manager()
+        self.resources = self.manager.dict()  # {}
+
         for node_id in range(node_quantity):
             self.__create_node(node_id, node_capacities[node_id])
 
         # Start a thread to check the status of the nodes
         check_thread = threading.Thread(target=self.__check_nodes_status)
         check_thread.daemon = True
-        check_thread.start()
+        # check_thread.start()
 
         # Start a thread to distribute tasks to nodes
         distribute_thread = threading.Thread(target=self.__distribute_tasks)
@@ -226,8 +303,109 @@ class Master:
         assign_thread.daemon = True
         assign_thread.start()
 
+        # Start a thread to manage resources
+        resource_thread = threading.Thread(target=self.resource_manager)
+        resource_thread.daemon = True
+        resource_thread.start()
+
         # Initialize the Flask server
         self.__initialize_server()
+
+    def request_read_resource(self, node_id, resource):
+        lock: ReadWriteLock = self.resource_locks[resource]
+        lock.acquire_read()  # Acquire read lock
+        self.logger.info(
+            f"Node {node_id} has acquired read access to resource {resource}"
+        )
+        # Track the resource in the node's resource set
+        if node_id not in self.resource_in_use:
+            self.resource_in_use[node_id] = set()
+        self.resource_in_use[node_id].add(resource)
+
+    def release_read_resource(self, node_id, resource):
+        lock = self.resource_locks[resource]
+        lock.release_read()  # Release read lock
+        self.logger.info(
+            f"Node {node_id} has released read access to resource {resource}"
+        )
+        # Remove the resource from the node's resource set
+        if node_id in self.resource_in_use:
+            self.resource_in_use[node_id].discard(resource)
+            # Clean up if no more resources are held by this node
+            if not self.resource_in_use[node_id]:
+                del self.resource_in_use[node_id]
+
+    def request_write_resource(self, node_id, resource):
+        lock = self.resource_locks[resource]
+        lock.acquire_write()  # Acquire write lock
+        self.logger.info(
+            f"Node {node_id} has acquired write access to resource {resource}"
+        )
+
+        # Track the resource in the node's resource set
+        if node_id not in self.resource_in_use:
+            self.resource_in_use[node_id] = set()
+        self.resource_in_use[node_id].add(resource)
+
+    def release_write_resource(self, node_id, resource):
+        lock = self.resource_locks[resource]
+        lock.release_write()  # Release write lock
+        self.logger.info(
+            f"Node {node_id} has released write access to resource {resource}"
+        )
+
+        # Remove the resource from the node's resource set
+        if node_id in self.resource_in_use:
+            self.resource_in_use[node_id].discard(resource)
+            # Clean up if no more resources are held by this node
+            if not self.resource_in_use[node_id]:
+                del self.resource_in_use[node_id]
+
+    async def handle_read_request(self, node_id, resource, resource_pipe):
+        self.request_read_resource(node_id, resource)
+        # If node died during wait, release the resource
+        if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
+            shared_resource = self.resources.get(resource)["resource"]
+            resource_pipe.send({"status": "granted_read", "resource": shared_resource})
+        else:
+            self.release_read_resource(node_id, resource)
+
+    async def handle_write_request(self, node_id, resource, resource_pipe):
+        self.request_write_resource(node_id, resource)
+        # If node died during wait, release the resource
+        if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
+            shared_resource = self.resources.get(resource)["resource"]
+            resource_pipe.send({"status": "granted_write", "resource": shared_resource})
+        else:
+            self.release_write_resource(node_id, resource)
+
+    def resource_manager(self):
+        while True:
+            for node_id, resource_pipe in self.resource_pipes.items():
+                if (
+                    self.node_processes[node_id].is_alive()
+                    and self.active_nodes[node_id]
+                    and resource_pipe.poll()
+                ):
+                    message = resource_pipe.recv()
+                    type = message.get("type")
+                    resource = message.get("resource")
+                    if not self.resources.get(resource):
+                        resource_pipe.send(
+                            {"status": "error", "message": "Resource not found"}
+                        )
+                        continue
+                    if type == "request_read":
+                        self.handle_read_request(node_id, resource, resource_pipe)
+                    elif type == "release_read":
+                        self.release_read_resource(node_id, resource)
+                        resource_pipe.send({"status": "released_read"})
+                    elif type == "request_write":
+                        self.handle_write_request(node_id, resource, resource_pipe)
+                    elif type == "release_write":
+                        self.release_write_resource(node_id, resource)
+                        resource_pipe.send({"status": "released_write"})
+            time.sleep(1)
 
     def run(self):
         if self.app:
