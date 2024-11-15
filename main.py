@@ -56,53 +56,47 @@ def executeRequests(parsed_data):
     requests_list = parsed_data["system"].get("requests", [])
     for request in requests_list:
         endpoint = request.get("endpoint", "N/A")
+        times = request.get("times", 1)
         method = request.get("method", "N/A")
-        sleep = request.get("sleep", "N/A")
+        sleep = request.get("sleep", 1)
         body = request.get("body", {})
         body_type = body.get("type", "N/A")
         command = body.get("command", "N/A")
 
-        data = None
-        headers = {}
-        if body_type == "json":
-            data = command  # Enviar como JSON
-            headers = {"Content-Type": "application/json"}
-        elif body_type == "form":
-            data = command  # Enviar como datos de formulario
+        headers = {"Content-Type": "application/json"}
 
         # Ejecutar la solicitud HTTP
-        try:
-            if method == "GET":
-                response = requests.get(endpoint)
-            elif method == "POST":
-                response = requests.post(
-                    endpoint,
-                    json=data if body_type == "json" else None,
-                    data=data if body_type == "form" else None,
-                    headers=headers,
-                )
-            elif method == "PUT":
-                response = requests.put(
-                    endpoint,
-                    json=data if body_type == "json" else None,
-                    data=data if body_type == "form" else None,
-                    headers=headers,
-                )
-            elif method == "DELETE":
-                response = requests.delete(endpoint)
-            else:
-                print(f"  - Método {method} no soportado.")
-                continue
+        for i in range(times):
+            try:
+                if method == "GET":
+                    response = requests.get(endpoint)
+                elif method == "POST":
+                    response = requests.post(
+                        endpoint,
+                        json=body,
+                        headers=headers,
+                    )
+                elif method == "PUT":
+                    response = requests.put(
+                        endpoint,
+                        json=body,
+                        headers=headers,
+                    )
+                elif method == "DELETE":
+                    response = requests.delete(endpoint)
+                else:
+                    print(f"  - Método {method} no soportado.")
+                    break
 
-            # Imprimir el resultado de la solicitud
-            print(f"  - Código de respuesta: {response.status_code}")
-            print(f"  - Respuesta: {response.text}")
+                # Imprimir el resultado de la solicitud
+                print(f"  - Código de respuesta: {response.status_code}")
+                print(f"  - Respuesta: {response.text}")
 
-        except requests.RequestException as e:
-            print(f"Error al ejecutar la solicitud: {e}")
+            except requests.RequestException as e:
+                print(f"Error al ejecutar la solicitud: {e}")
 
-        # Pausar antes de ejecutar la próxima solicitud
-        time.sleep(sleep)
+            # Pausar antes de ejecutar la próxima solicitud
+            time.sleep(sleep)
 
 
 def inicializeMaster(node_quantity, node_capacities):
@@ -112,7 +106,7 @@ def inicializeMaster(node_quantity, node_capacities):
 
 if __name__ == "__main__":
     try:
-        with open("config.yml", "r") as file:
+        with open("Prueba3.yaml", "r") as file:
             parsed_data = yaml.safe_load(file)
     except FileNotFoundError:
         print("El archivo config.yml no se encuentra.")
@@ -121,16 +115,16 @@ if __name__ == "__main__":
         print(f"Error al leer el archivo YAML: {e}")
         exit(1)
 
-    # node_quantity, node_capacities = parseYaml(parsed_data)
+    node_quantity, node_capacities = parseYaml(parsed_data)
+
+    process = multiprocessing.Process(
+        target=inicializeMaster,
+        args=(node_quantity, node_capacities),
+    )
+    process.start()
+
+    time.sleep(8)
+    print("Master is running")
 
     if parsed_data["system"]["requests"] != []:
         executeRequests(parsed_data)
-
-    # process = multiprocessing.Process(
-    #     target=inicializeMaster,
-    #     args=(node_quantity, node_capacities),
-    # )
-    # process.start()
-
-    # time.sleep(8)
-    # print("Master is running")

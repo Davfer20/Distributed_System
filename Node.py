@@ -56,6 +56,7 @@ class Node:
                                 "release_read_resource": self.release_read_resource,
                                 "request_write_resource": self.request_write_resource,
                                 "release_write_resource": self.release_write_resource,
+                                "self": self,
                             }
 
                             exec(instruction.command, exec_locals)

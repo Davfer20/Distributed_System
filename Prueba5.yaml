@@ -1,0 +1,26 @@
+system:
+  node_quantity: 5
+  node_capacities:
+    - 5
+    - 5
+    - 5
+    - 5
+    - 5
+  shared_resources:
+    - name: shared_list
+      type: List
+      values:
+        initial_value: [1, 2, 3, 4, 5]
+    - name: shared_dict
+      type: Dict
+      values:
+        initial_value: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 }
+  requests:
+    - endpoint: http://localhost:5000/send/0
+      times: 4
+      method: POST
+      sleep: 2
+      body:
+        type: python
+        command: "def fibonacci(n):\n\tif n == 0:\n\t\treturn 0\n\telif n == 1:\n\t\treturn 1\n\telse:\n\t\treturn fibonacci(n-1) + fibonacci(n-2)\nresponse = fibonacci(40)"
+      
