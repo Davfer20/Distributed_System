@@ -106,7 +106,7 @@ def inicializeMaster(node_quantity, node_capacities):
 
 if __name__ == "__main__":
     try:
-        with open("Prueba3.yaml", "r") as file:
+        with open("Prueba4.yaml", "r") as file:
             parsed_data = yaml.safe_load(file)
     except FileNotFoundError:
         print("El archivo config.yml no se encuentra.")
