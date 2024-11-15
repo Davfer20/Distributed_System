@@ -17,17 +17,20 @@ logging.basicConfig(
 
 
 class Node:
-    def __init__(self, nodeId, pipe, heartbeat, idle, resource_pipe):
+    def __init__(self, nodeId, pipe, heartbeat, idle, resource_pipe, capacity):
         self.escuchando = False  # Controla el bucle de escucha
-        self.nodeId = nodeId
+        self.node_id = nodeId
         self.pipe = pipe
         self.heartbeat = heartbeat
         self.idle = idle
         self.idle.set()
         self.resource_pipe = resource_pipe
-        self.logger = logging.getLogger(f"Node {self.nodeId}-{os.getpid()}")
+        self.capacity = capacity
+        self.logger = logging.getLogger(f"Node {self.node_id}-{os.getpid()}")
 
-        self.logger.info(f"Node created: {os.getpid()}")
+        self.logger.info(
+            f"Node {self.node_id} created: {os.getpid()} with capacity of {self.capacity}"
+        )
 
         heartbeat_thread = threading.Thread(target=self.send_heartbeat)
         heartbeat_thread.daemon = True
@@ -54,27 +57,28 @@ class Node:
                                 "request_write_resource": self.request_write_resource,
                                 "release_write_resource": self.release_write_resource,
                             }
-                            exec(instruction.command, {}, exec_locals)
+
+                            exec(instruction.command, exec_locals)
                             response = exec_locals.get(
                                 "response", "No result retruned."
                             )
                         except Exception as e:
                             error_details = traceback.format_exc()
-                            response = f"Node {self.nodeId}: The code executed produced an error. {error_details}"
+                            response = f"Node {self.node_id}: The code executed produced an error. {error_details}"
 
                     elif instruction.type == "shell":
                         try:
                             response = os.system(instruction.command)
                         except Exception as e:
-                            response = f"Node {self.nodeId}: The shell command produced an error. {e}"
+                            response = f"Node {self.node_id}: The shell command produced an error. {e}"
                     else:
-                        response = f"Node {self.nodeId}: Unknown instruction received."
+                        response = f"Node {self.node_id}: Unknown instruction received."
                     # Here you could process messages and perhaps send a response
                     self.logger.info(response)
                     self.pipe.send(response)
                     self.idle.set()
         except BrokenPipeError:
-            print(f"Node {self.nodeId}: Pipe was closed unexpectedly.")
+            print(f"Node {self.node_id}: Pipe was closed unexpectedly.")
 
     def send_heartbeat(self):
         while True:

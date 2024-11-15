@@ -19,10 +19,10 @@ logging.basicConfig(
 )
 
 
-def initialize_node(node_id, pipe, heartbeat, idle, resource_pipe):
+def initialize_node(node_id, pipe, heartbeat, idle, resource_pipe, max_capacity):
     # This function initializes the Node instance
     node = Node(
-        node_id, pipe, heartbeat, idle, resource_pipe
+        node_id, pipe, heartbeat, idle, resource_pipe, max_capacity
     )  # Create an instance of Node with the given ID
 
 
@@ -128,6 +128,13 @@ class Master:
                 {"message": f"Resource {resource_name} created successfully"}
             )
 
+        @self.app.route("/add", methods=["POST"])
+        def add_node():
+            node_id = len(self.node_processes)
+            max_capacity = request.json.get("max_capacity", 10)
+            self.__create_node(node_id, max_capacity)
+            return jsonify({"message": f"Node {node_id} added successfully"})
+
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
         idle = multiprocessing.Event()
@@ -136,7 +143,14 @@ class Master:
         parent_resource_pipe, child_resource_pipe = multiprocessing.Pipe()
         process = multiprocessing.Process(
             target=initialize_node,
-            args=(node_id, child_pipe, child_heartbeat, idle, child_resource_pipe),
+            args=(
+                node_id,
+                child_pipe,
+                child_heartbeat,
+                idle,
+                child_resource_pipe,
+                max_capacity,
+            ),
         )
         self.node_processes[node_id] = process
         self.node_pipes[node_id] = parent_pipe
@@ -193,9 +207,6 @@ class Master:
         # Implement a simple round-robin scheduling algorithm
         count = 0
         while True:
-            self.logger.info(
-                f"Node {self.current_node} is {self.active_nodes[self.current_node]}"
-            )
             if (
                 self.active_nodes[self.current_node]
                 and len(self.node_queues[self.current_node])
@@ -256,12 +267,13 @@ class Master:
                     else:
                         # Steal work from other queues
                         for other_node, other_queue in self.node_queues.items():
-                            if len(other_queue) > 1:
+                            if other_node != node_id and len(other_queue) > 1:
                                 self.logger.critical(
                                     f"Node {node_id} is stealing work from Node {other_node}!"
                                 )
                                 instruction = other_queue.pop()
                                 queue.append(instruction)
+                                break
                                 # self.node_pipes[node_id].send(instruction)
             time.sleep(1)
 
@@ -291,7 +303,7 @@ class Master:
         # Start a thread to check the status of the nodes
         check_thread = threading.Thread(target=self.__check_nodes_status)
         check_thread.daemon = True
-        # check_thread.start()
+        check_thread.start()
 
         # Start a thread to distribute tasks to nodes
         distribute_thread = threading.Thread(target=self.__distribute_tasks)
