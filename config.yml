@@ -1,0 +1,39 @@
+system:
+  node_quantity: 5
+  node_capacities:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+  shared_resources:
+    - name: shared_list
+      type: List
+      values:
+        type_code: i
+        size: 5
+        initial_value: [1, 2, 3, 4, 5]
+    - name: shared_dict
+      type: Dict
+      values:
+        initial_value: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 }
+  requests:
+    - endpoint: /send
+      method: POST
+      sleep: 10
+      body:
+        type: python
+        command: |
+          import time
+          shared_list = request_read_resource('shared_list')
+          response = 0
+          print(shared_list)
+          if shared_list:
+              try:
+                  for i in range(3):
+                      response += shared_list[i]
+                      time.sleep(30)
+              finally:
+                  release_read_resource('shared_list')
+          else:
+              response = 'Resource acquisition failed'
