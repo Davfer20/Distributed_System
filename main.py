@@ -52,6 +52,23 @@ def parseYaml(parsed_data):
     return node_quantity, node_capacities
 
 
+def createResources(parsed_data):
+    resources = parsed_data["system"].get("shared_resources", [])
+    for resource in resources:
+        name = resource.get("name", "N/A")
+        resource_type = resource.get("type", "N/A")
+        values = resource.get("values", {})
+
+        json_data = {"name": name, "type": resource_type, "values": values}
+        response = requests.post(
+            "http://localhost:5000/resource",
+            json=json_data,
+            headers={"Content-Type": "application/json"},
+        )
+        print(f"  - Código de respuesta de Crear el recurso: {response.status_code}")
+        print(f"  - Respuesta: {response.text}")
+
+
 def executeRequests(parsed_data):
     requests_list = parsed_data["system"].get("requests", [])
     for request in requests_list:
@@ -106,7 +123,7 @@ def inicializeMaster(node_quantity, node_capacities):
 
 if __name__ == "__main__":
     try:
-        with open("Prueba4.yaml", "r") as file:
+        with open("Prueba1.yaml", "r") as file:
             parsed_data = yaml.safe_load(file)
     except FileNotFoundError:
         print("El archivo config.yml no se encuentra.")
@@ -123,8 +140,11 @@ if __name__ == "__main__":
     )
     process.start()
 
-    time.sleep(8)
+    time.sleep(4)
     print("Master is running")
+
+    if parsed_data["system"]["shared_resources"] != []:
+        createResources(parsed_data)
 
     if parsed_data["system"]["requests"] != []:
         executeRequests(parsed_data)
