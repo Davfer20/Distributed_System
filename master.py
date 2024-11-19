@@ -31,44 +31,50 @@ class Master:
         # Initialize Flask app for HTTP handling
         self.app = Flask(__name__)
 
-        # Define Flask route for sending messages to nodes
+        # Flask route for sending messages to nodes
         @self.app.route("/send/<int:node_id>", methods=["POST"])
         def receive_instruction_for_node(node_id):
-            if node_id not in self.node_pipes:
+            if node_id not in self.node_pipes:  # If the node does not exist.
                 return jsonify({"error": "Node ID not found"}), 404
-            type = request.json.get("type")
-            command = request.json.get("command")
+            type = request.json.get("type")  # Type of the instruction
+            command = request.json.get("command")  # Instruction that needs to be run
             if not command or not type:
                 return jsonify({"error": "Message content is missing"}), 400
-            instruction = Instruction(type, command)
-            while True:
+            instruction = Instruction(type, command)  # Create an instruction object
+            while (
+                True
+            ):  # If the queue is full, an instruction cannot be added, so the server waits until the queue is not full.
                 if len(self.node_queues[node_id]) < self.node_queues[node_id].maxlen:
                     break
                 time.sleep(1)
-            self.node_queues[node_id].append(instruction)
+            self.node_queues[node_id].append(
+                instruction
+            )  # Add the instruction to the queue
             self.logger.info(
                 f"Node {node_id}'s queue length: {len(self.node_queues[node_id])}"
             )
             return jsonify({"message": f"Instruction received for node {node_id}"})
 
-        # Define Flask route for sending messages to the master
+        # Flask route for sending messages to the master
         @self.app.route("/send", methods=["POST"])
         def receive_instruction():
-            type = request.json.get("type")
-            command = request.json.get("command")
+            type = request.json.get("type")  # Type of the instruction
+            command = request.json.get("command")  # Instruction that needs to be run
             if not command or not type:
                 return jsonify({"error": "Message content is missing"}), 400
-            instruction = Instruction(type, command)
-            self.master_queue.append(instruction)
+            instruction = Instruction(type, command)  # Create an instruction object
+            self.master_queue.append(
+                instruction
+            )  # Add the instruction to the master queue
             return jsonify({"message": "Instruction received"})
 
-        # Define Flask route for stopping nodes
+        # Flask route for stopping nodes
         @self.app.route("/stop/<int:node_id>", methods=["POST"])
         def stop_node(node_id):
-            if node_id not in self.node_pipes:
+            if node_id not in self.node_pipes:  # If the node does not exist.
                 return jsonify({"error": "Node ID not found"}), 404
             # Send stop signal to the node
-            self.node_processes[node_id].terminate()
+            self.node_processes[node_id].terminate()  # Terminate the process
             return jsonify({"message": f"Node {node_id} stopped successfully"})
 
         # Create resource
@@ -78,13 +84,15 @@ class Master:
             # Type: File/String/Integer/Float/Boolean/List/Dictionary/Tuple
             # Name:
             # Value:
-            resource_name = request.json.get("name")
-            resource_type = request.json.get("type")
-            values = request.json.get("values", {})
+            resource_name = request.json.get("name")  # Name of the resource
+            resource_type = request.json.get("type")  # Type of the resource
+            values = request.json.get("values", {})  # Values of the resource
             if not resource_name or not resource_type or not values:
                 return jsonify({"error": "A resource field is missing."}), 400
-            self.resources[resource_name] = None
-            self.resource_locks[resource_name] = ReadWriteLock()
+            self.resources[resource_name] = None  # Create the resource
+            self.resource_locks[resource_name] = (
+                ReadWriteLock()
+            )  # Create a lock for the resource
             # Create a shared resource based on type
             if resource_type == "File":
                 file_path = values.get("path", "README.md")
@@ -131,6 +139,7 @@ class Master:
                 {"message": f"Resource {resource_name} created successfully"}
             )
 
+        # Flask route to add a node to the server
         @self.app.route("/add", methods=["POST"])
         def add_node():
             node_id = len(self.node_processes)
@@ -140,10 +149,16 @@ class Master:
 
     def __create_node(self, node_id, max_capacity=10):
         # Create each process to initialize a Node instance in that process
-        idle = multiprocessing.Event()
-        parent_pipe, child_pipe = multiprocessing.Pipe()
-        child_heartbeat = multiprocessing.Value("d", time.time())
-        parent_resource_pipe, child_resource_pipe = multiprocessing.Pipe()
+        idle = multiprocessing.Event()  # Event to indicate if the node is idle
+        parent_pipe, child_pipe = (
+            multiprocessing.Pipe()
+        )  # Pipe for communication between the master and the node
+        child_heartbeat = multiprocessing.Value(
+            "d", time.time()
+        )  # Value to store the heartbeat time
+        parent_resource_pipe, child_resource_pipe = (
+            multiprocessing.Pipe()
+        )  # Pipe for resource management
         process = multiprocessing.Process(
             target=initialize_node,
             args=(
@@ -154,7 +169,8 @@ class Master:
                 child_resource_pipe,
                 max_capacity,
             ),
-        )
+        )  # Create a process for the node
+        # Set all of the node's attributes and variables
         self.node_processes[node_id] = process
         self.node_pipes[node_id] = parent_pipe
         self.node_heartbeats[node_id] = child_heartbeat
@@ -163,17 +179,19 @@ class Master:
         self.active_nodes[node_id] = True
         self.logger.info(f"Node {node_id} activated.")
         self.resource_pipes[node_id] = parent_resource_pipe
-        process.start()
+        process.start()  # Start the process
 
     def __requeue_tasks(self, node_id):
         # Requeue tasks from the specified node
-        queue = self.node_queues[node_id]
+        queue = self.node_queues[node_id]  # Get the queue for the specified node
         self.logger.info(
             f"Node {node_id}'s queue length before requeueing: {len(queue)}"
         )
-        while queue:
-            instruction = queue.pop()
-            self.master_queue.appendleft(instruction)
+        while queue:  # While there are still tasks in the queue
+            instruction = queue.pop()  # Remove the task from the queue
+            self.master_queue.appendleft(
+                instruction
+            )  # Add the task to the master queue
         self.logger.info(
             f"Finished requeueing for Node {node_id}: length {len(self.node_queues[node_id])}"
         )
@@ -189,8 +207,8 @@ class Master:
                     if current_time - heartbeat.value > timeout:
                         self.logger.info(f"Node {node_id} is not responding.")
                         self.logger.info(f"Requeueing tasks from Node {node_id}")
-                        self.active_nodes[node_id] = False
-                        self.__requeue_tasks(node_id)
+                        self.active_nodes[node_id] = False  # Set node as inactive
+                        self.__requeue_tasks(node_id)  # Requeue tasks from the node
                         # Release held resources
                         if node_id in self.resource_in_use:
                             resources_held = list(
@@ -211,14 +229,16 @@ class Master:
         # Select the next node to send a task to
         # Implement a simple round-robin scheduling algorithm
         count = 0
-        while True:
+        while True:  # Loop until a node is found
             if (
                 self.active_nodes[self.current_node]
                 and len(self.node_queues[self.current_node])
                 < self.node_queues[self.current_node].maxlen
-            ):
+            ):  # If the node is active and has space in its queue
                 break
-            self.current_node = (self.current_node + 1) % len(self.node_processes)
+            self.current_node = (self.current_node + 1) % len(
+                self.node_processes
+            )  # Move to the next node
             count += 1
             if count == len(self.node_processes):
                 time.sleep(5)
@@ -228,9 +248,13 @@ class Master:
                 count = 0
 
     def add_task_to_node(self):
-        self.select_next_node()
-        instruction = self.master_queue.popleft()
-        self.node_queues[self.current_node].append(instruction)
+        self.select_next_node()  # Select the next node to send a task to
+        instruction = (
+            self.master_queue.popleft()
+        )  # Get the instruction from the master queue
+        self.node_queues[self.current_node].append(
+            instruction
+        )  # Add the instruction to the node's queue
         # Send message to the specified node
         self.logger.info(f"Queueing instruction to Node {self.current_node}")
 
@@ -239,6 +263,7 @@ class Master:
         )
         self.current_node = (self.current_node + 1) % len(self.node_processes)
 
+    # This function is run in a separate thread to distribute tasks to nodes
     def __distribute_tasks(self):
         while True:
             if self.master_queue:
@@ -246,9 +271,10 @@ class Master:
             else:
                 time.sleep(1)
 
+    # This function is run in a separate thread to assign tasks to nodes
     def __assign_tasks(self):
-        while True:
-            for node_id, idle in self.node_idleness.items():
+        while True:  # Loop indefinitely
+            for node_id, idle in self.node_idleness.items():  # Iterate over each node
                 if (
                     idle.is_set()
                     and self.node_processes[
