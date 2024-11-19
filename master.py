@@ -46,6 +46,9 @@ class Master:
                     break
                 time.sleep(1)
             self.node_queues[node_id].append(instruction)
+            self.logger.info(
+                f"Node {node_id}'s queue length: {len(self.node_queues[node_id])}"
+            )
             return jsonify({"message": f"Instruction received for node {node_id}"})
 
         # Define Flask route for sending messages to the master
@@ -158,17 +161,21 @@ class Master:
         self.node_queues[node_id] = deque(maxlen=max_capacity)
         self.node_idleness[node_id] = idle
         self.active_nodes[node_id] = True
+        self.logger.info(f"Node {node_id} activated.")
         self.resource_pipes[node_id] = parent_resource_pipe
         process.start()
 
     def __requeue_tasks(self, node_id):
         # Requeue tasks from the specified node
         queue = self.node_queues[node_id]
+        self.logger.info(
+            f"Node {node_id}'s queue length before requeueing: {len(queue)}"
+        )
         while queue:
             instruction = queue.pop()
             self.master_queue.appendleft(instruction)
         self.logger.info(
-            f"Finished requeueing for {node_id}: length {len(self.node_queues[node_id])}"
+            f"Finished requeueing for Node {node_id}: length {len(self.node_queues[node_id])}"
         )
 
     def __check_nodes_status(self, timeout=10):
@@ -183,7 +190,6 @@ class Master:
                         self.logger.info(f"Node {node_id} is not responding.")
                         self.logger.info(f"Requeueing tasks from Node {node_id}")
                         self.active_nodes[node_id] = False
-                        # self.logger.info(f"1 Status: {self.active_nodes[node_id]}")
                         self.__requeue_tasks(node_id)
                         # Release held resources
                         if node_id in self.resource_in_use:
@@ -198,7 +204,6 @@ class Master:
                         # Restart the node and update the heartbeat value
                         self.__create_node(node_id, self.node_queues[node_id].maxlen)
                         self.logger.info(f"Node {node_id} restarted.")
-                        # self.logger.info(f"2 Status: {self.active_nodes[node_id]}")
 
             time.sleep(1)
 
@@ -228,7 +233,6 @@ class Master:
         self.node_queues[self.current_node].append(instruction)
         # Send message to the specified node
         self.logger.info(f"Queueing instruction to Node {self.current_node}")
-        self.logger.info(f"Status: {self.active_nodes[self.current_node]}")
 
         self.logger.info(
             f"Node {self.current_node}'s queue length: {len(self.node_queues[self.current_node])}"
@@ -272,6 +276,9 @@ class Master:
                                     f"Node {node_id} is stealing work from Node {other_node}!"
                                 )
                                 instruction = other_queue.pop()
+                                self.logger.info(
+                                    f"Node {other_node}'s queue length: {len(other_queue)}"
+                                )
                                 queue.append(instruction)
                                 break
                                 # self.node_pipes[node_id].send(instruction)

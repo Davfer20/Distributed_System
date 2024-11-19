@@ -11,10 +11,6 @@ system:
       type: List
       values:
         initial_value: [1, 2, 3, 4, 5]
-    - name: shared_dict
-      type: Dict
-      values:
-        initial_value: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 }
   requests:
     - endpoint: http://localhost:5000/send
       times: 6
@@ -36,6 +32,3 @@ system:
       body:
         type: python
         command: "def fibonacci(n):\n\tif n == 0:\n\t\treturn 0\n\telif n == 1:\n\t\treturn 1\n\telse:\n\t\treturn fibonacci(n-1) + fibonacci(n-2)\nresponse = fibonacci(40)"
-
-
-      
