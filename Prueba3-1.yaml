@@ -17,11 +17,7 @@ system:
       body:
         type: python
         command: "def fibonacci(n):\n\tif n == 0:\n\t\treturn 0\n\telif n == 1:\n\t\treturn 1\n\telse:\n\t\treturn fibonacci(n-1) + fibonacci(n-2)\nresponse = fibonacci(40)"
-<<<<<<<< Updated upstream:Prueba3.2.yaml
     - endpoint: http://localhost:5000/stop/0
-========
-    - endpoint: http://localhost:5000/send
->>>>>>>> Stashed changes:Prueba3-2.yaml
       times: 1
       method: POST
       sleep: 0
