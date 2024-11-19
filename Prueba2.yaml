@@ -22,34 +22,41 @@ system:
       sleep: 0
       body:
         type: python
-        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(200):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal += response\nfinally:\n\trelease_write_resource('total')\n"
+        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(200):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal.value += response\nfinally:\n\trelease_write_resource('total')\n"
     - endpoint: http://localhost:5000/send
       times: 1
       method: POST
       sleep: 0
       body:
         type: python
-        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(200, 400):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal += response\nfinally:\n\trelease_write_resource('total')\n"
+        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(200, 400):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal.value += response\nfinally:\n\trelease_write_resource('total')\n"
     - endpoint: http://localhost:5000/send
       times: 1
       method: POST
       sleep: 0
       body:
         type: python
-        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(400, 600):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal += response\nfinally:\n\trelease_write_resource('total')\n"
+        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(400, 600):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal.value += response\nfinally:\n\trelease_write_resource('total')\n"
     - endpoint: http://localhost:5000/send
       times: 1
       method: POST
       sleep: 0
       body:
         type: python
-        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(600, 800):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal += response\nfinally:\n\trelease_write_resource('total')\n"
+        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(600, 800):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal.value += response\nfinally:\n\trelease_write_resource('total')\n"
+    - endpoint: http://localhost:5000/send
+      times: 1
+      method: POST
+      sleep: 20
+      body:
+        type: python
+        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(800, 1000):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal.value += response\nfinally:\n\trelease_write_resource('total')\n"
     - endpoint: http://localhost:5000/send
       times: 1
       method: POST
       sleep: 0
       body:
         type: python
-        command: "import time\nshared_list = request_read_resource('shared_list')\nresponse = 0\nprint(shared_list)\nif shared_list:\n\ttry:\n\t\tfor i in range(800, 1000):\n\t\t\tresponse += shared_list[i]\n\tfinally:\n\t\trelease_read_resource('shared_list')\nelse:\n\tresponse = 0\ntotal = request_write_resource('total')\ntry:\n\ttotal += response\nfinally:\n\trelease_write_resource('total')\n"
+        command: "total = request_read_resource('total')\nprint(total.value)"
 
   

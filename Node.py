@@ -61,7 +61,7 @@ class Node:
 
                             exec(instruction.command, exec_locals)
                             response = exec_locals.get(
-                                "response", "No result retruned."
+                                "response", "No result returned."
                             )
                         except Exception as e:
                             error_details = traceback.format_exc()
@@ -97,6 +97,10 @@ class Node:
 
     def release_read_resource(self, resource):
         self.resource_pipe.send({"type": "release_read", "resource": resource})
+        response = self.resource_pipe.recv()
+        if response["status"] == "released_read":
+            return
+        raise Exception("Error releasing resource")
 
     def request_write_resource(self, resource):
         self.resource_pipe.send({"type": "request_write", "resource": resource})
@@ -107,3 +111,7 @@ class Node:
 
     def release_write_resource(self, resource):
         self.resource_pipe.send({"type": "release_write", "resource": resource})
+        response = self.resource_pipe.recv()
+        if response["status"] == "released_write":
+            return
+        raise Exception("Error releasing resource")

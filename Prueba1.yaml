@@ -1,0 +1,22 @@
+system:
+  node_quantity: 3
+  node_capacities:
+    - 3
+    - 4
+    - 5
+  shared_resources:
+    - name: total
+      type: Integer
+      values:
+        initial_value: 0
+  requests:
+    - endpoint: http://localhost:5000/send
+      times: 11
+      method: POST
+      sleep: 0
+      body:
+        type: python
+        command: "def fibonacci(n):\n\tif n == 0:\n\t\treturn 0\n\telif n == 1:\n\t\treturn 1\n\telse:\n\t\treturn fibonacci(n-1) + fibonacci(n-2)\nresponse = fibonacci(45)"
+
+
+      
