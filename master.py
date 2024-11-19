@@ -193,14 +193,17 @@ class Master:
                         self.__requeue_tasks(node_id)
                         # Release held resources
                         if node_id in self.resource_in_use:
+                            self.logger.info(
+                                f"Releasing resources held by Node {node_id}"
+                            )
                             resources_held = list(
                                 self.resource_in_use[node_id]
                             )  # Copy to avoid modification during iteration
                             for resource in resources_held:
-                                self.release_resource(node_id, resource)
-                                self.logger.info(
-                                    f"Node {node_id} released resource {resource}"
-                                )
+                                if resource[1] == "read":
+                                    self.release_read_resource(node_id, resource[0])
+                                else:
+                                    self.release_write_resource(node_id, resource[0])
                         # Restart the node and update the heartbeat value
                         self.__create_node(node_id, self.node_queues[node_id].maxlen)
                         self.logger.info(f"Node {node_id} restarted.")
@@ -339,7 +342,7 @@ class Master:
         # Track the resource in the node's resource set
         if node_id not in self.resource_in_use:
             self.resource_in_use[node_id] = set()
-        self.resource_in_use[node_id].add(resource)
+        self.resource_in_use[node_id].add((resource, "read"))
 
     def release_read_resource(self, node_id, resource):
         lock = self.resource_locks[resource]
@@ -349,7 +352,7 @@ class Master:
         )
         # Remove the resource from the node's resource set
         if node_id in self.resource_in_use:
-            self.resource_in_use[node_id].discard(resource)
+            self.resource_in_use[node_id].discard((resource, "read"))
             # Clean up if no more resources are held by this node
             if not self.resource_in_use[node_id]:
                 del self.resource_in_use[node_id]
@@ -364,7 +367,7 @@ class Master:
         # Track the resource in the node's resource set
         if node_id not in self.resource_in_use:
             self.resource_in_use[node_id] = set()
-        self.resource_in_use[node_id].add(resource)
+        self.resource_in_use[node_id].add((resource, "write"))
 
     def release_write_resource(self, node_id, resource):
         lock = self.resource_locks[resource]
@@ -375,7 +378,7 @@ class Master:
 
         # Remove the resource from the node's resource set
         if node_id in self.resource_in_use:
-            self.resource_in_use[node_id].discard(resource)
+            self.resource_in_use[node_id].discard((resource, "write"))
             # Clean up if no more resources are held by this node
             if not self.resource_in_use[node_id]:
                 del self.resource_in_use[node_id]

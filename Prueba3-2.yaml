@@ -11,10 +11,6 @@ system:
       type: List
       values:
         initial_value: [1, 2, 3, 4, 5]
-    - name: shared_dict
-      type: Dict
-      values:
-        initial_value: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 }
   requests:
     - endpoint: http://localhost:5000/send/0
       times: 2

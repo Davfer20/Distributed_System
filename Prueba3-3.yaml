@@ -1,0 +1,25 @@
+system:
+  node_quantity: 5
+  node_capacities:
+    - 5
+    - 5
+    - 5
+    - 5
+    - 5
+  shared_resources:
+    - name: shared_list
+      type: List
+      values:
+        initial_value: [40, 2, 3, 4, 5]
+  requests:
+    - endpoint: http://localhost:5000/send
+      times: 1
+      method: POST
+      sleep: 3
+      body:
+        type: python
+        command: "def fibonacci(n):\n\tif n == 0:\n\t\treturn 0\n\telif n == 1:\n\t\treturn 1\n\telse:\n\t\treturn fibonacci(n-1) + fibonacci(n-2)\nshared_list = request_read_resource('shared_list')\nresponse = fibonacci(shared_list[0])\nrelease_read_resource('shared_list')"
+    - endpoint: http://localhost:5000/stop/0
+      times: 1
+      method: POST
+      sleep: 0
