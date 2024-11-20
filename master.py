@@ -211,17 +211,7 @@ class Master:
                         self.__requeue_tasks(node_id)  # Requeue tasks from the node
                         # Release held resources
                         if node_id in self.resource_in_use:
-                            self.logger.info(
-                                f"Releasing resources held by Node {node_id}"
-                            )
-                            resources_held = list(
-                                self.resource_in_use[node_id]
-                            )  # Copy to avoid modification during iteration
-                            for resource in resources_held:
-                                if resource[1] == "read":
-                                    self.release_read_resource(node_id, resource[0])
-                                else:
-                                    self.release_write_resource(node_id, resource[0])
+                            self.release_resources(node_id)
                         # Restart the node and update the heartbeat value
                         self.__create_node(node_id, self.node_queues[node_id].maxlen)
                         self.logger.info(f"Node {node_id} restarted.")
@@ -291,6 +281,9 @@ class Master:
                         # Print the response from the node
                         response = self.node_pipes[node_id].recv()
                         self.logger.info(f"Node {node_id} response: {response}")
+                        # Release held resources in case the process did not release them
+                        if node_id in self.resource_in_use:
+                            self.release_resources(node_id)
                         queue.popleft()  # Remove the task from the queue
 
                     if queue:
@@ -421,6 +414,17 @@ class Master:
             ]:  # If the node is not holding any resources
                 del self.resource_in_use[node_id]
 
+    def release_resources(self, node_id):
+        self.logger.info(f"Releasing resources held by Node {node_id}")
+        resources_held = list(
+            self.resource_in_use[node_id]
+        )  # Copy to avoid modification during iteration
+        for resource in resources_held:
+            if resource[1] == "read":
+                self.release_read_resource(node_id, resource[0])
+            else:
+                self.release_write_resource(node_id, resource[0])
+
     def handle_read_request(self, node_id, resource, resource_pipe):
         self.request_read_resource(node_id, resource)  # Request read resource
         # If node died during wait, release the resource
@@ -502,5 +506,5 @@ class Master:
 
 # Example usage
 if __name__ == "__main__":
-    master = Master(node_quantity=5)
+    master = Master(node_quantity=5, node_capacities=[5, 5, 5, 5, 5])
     master.run()

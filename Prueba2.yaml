@@ -1059,4 +1059,4 @@ system:
       sleep: 0
       body:
         type: python
-        command: "total = request_read_resource('total')\nprint(total.value)\nrelease_read_resource('total')\n"
+        command: "total = request_read_resource('total')\nresponse = total.value\nprint(response)\n"
