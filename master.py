@@ -325,15 +325,17 @@ class Master:
         self.active_nodes = {}  # Dict for active nodes
         self.current_node = 0
         self.logger = logging.getLogger("Master")
-        self.logger.info(f"Master process ID: {os.getpid()}")
-        self.master_queue = deque()
-        self.resource_locks = {}
-        self.resource_in_use = {}
-        self.resource_pipes = {}
-        self.manager = multiprocessing.Manager()
-        self.resources = self.manager.dict()  # {}
+        self.logger.info(f"Master process ID: {os.getpid()} ")
+        self.master_queue = (
+            deque()
+        )  # Queue that the master keeps that contains the instructions it receives
+        self.resource_locks = {}  # Locks for resources
+        self.resource_in_use = {}  # Resources in use by nodes
+        self.resource_pipes = {}  # Pipes for resource management
+        self.manager = multiprocessing.Manager()  # Manager to create shared resources
+        self.resources = self.manager.dict()  # Shared resources
 
-        for node_id in range(node_quantity):
+        for node_id in range(node_quantity):  # Create the specified number of nodes
             self.__create_node(node_id, node_capacities[node_id])
 
         # Start a thread to check the status of the nodes
@@ -360,24 +362,28 @@ class Master:
         self.__initialize_server()
 
     def request_read_resource(self, node_id, resource):
-        lock: ReadWriteLock = self.resource_locks[resource]
+        lock: ReadWriteLock = self.resource_locks[
+            resource
+        ]  # Get the lock for the resource
         lock.acquire_read()  # Acquire read lock
         self.logger.info(
             f"Node {node_id} has acquired read access to resource {resource}"
         )
         # Track the resource in the node's resource set
-        if node_id not in self.resource_in_use:
+        if (
+            node_id not in self.resource_in_use
+        ):  # If the node is not in the resource set
             self.resource_in_use[node_id] = set()
         self.resource_in_use[node_id].add((resource, "read"))
 
     def release_read_resource(self, node_id, resource):
-        lock = self.resource_locks[resource]
+        lock = self.resource_locks[resource]  # Get the lock for the resource
         lock.release_read()  # Release read lock
         self.logger.info(
             f"Node {node_id} has released read access to resource {resource}"
         )
         # Remove the resource from the node's resource set
-        if node_id in self.resource_in_use:
+        if node_id in self.resource_in_use:  # If the node is in the resource set
             self.resource_in_use[node_id].discard((resource, "read"))
             # Clean up if no more resources are held by this node
             if not self.resource_in_use[node_id]:
@@ -391,7 +397,9 @@ class Master:
         )
 
         # Track the resource in the node's resource set
-        if node_id not in self.resource_in_use:
+        if (
+            node_id not in self.resource_in_use
+        ):  # If the node is not in the resource set
             self.resource_in_use[node_id] = set()
         self.resource_in_use[node_id].add((resource, "write"))
 
@@ -403,27 +411,43 @@ class Master:
         )
 
         # Remove the resource from the node's resource set
-        if node_id in self.resource_in_use:
-            self.resource_in_use[node_id].discard((resource, "write"))
+        if node_id in self.resource_in_use:  # If the node is in the resource set
+            self.resource_in_use[node_id].discard(
+                (resource, "write")
+            )  # Remove the resource
             # Clean up if no more resources are held by this node
-            if not self.resource_in_use[node_id]:
+            if not self.resource_in_use[
+                node_id
+            ]:  # If the node is not holding any resources
                 del self.resource_in_use[node_id]
 
     def handle_read_request(self, node_id, resource, resource_pipe):
-        self.request_read_resource(node_id, resource)
+        self.request_read_resource(node_id, resource)  # Request read resource
         # If node died during wait, release the resource
-        if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
-            shared_resource = self.resources.get(resource)["resource"]
-            resource_pipe.send({"status": "granted_read", "resource": shared_resource})
+        if (
+            self.active_nodes[node_id] and self.node_processes[node_id].is_alive()
+        ):  # If the node is active and alive
+            shared_resource = self.resources.get(resource)[
+                "resource"
+            ]  # Get the shared resource
+            resource_pipe.send(
+                {"status": "granted_read", "resource": shared_resource}
+            )  # Send the resource
         else:
             self.release_read_resource(node_id, resource)
 
     def handle_write_request(self, node_id, resource, resource_pipe):
         self.request_write_resource(node_id, resource)
         # If node died during wait, release the resource
-        if self.active_nodes[node_id] and self.node_processes[node_id].is_alive():
-            shared_resource = self.resources.get(resource)["resource"]
-            resource_pipe.send({"status": "granted_write", "resource": shared_resource})
+        if (
+            self.active_nodes[node_id] and self.node_processes[node_id].is_alive()
+        ):  # If the node is active and alive
+            shared_resource = self.resources.get(resource)[
+                "resource"
+            ]  # Get the shared resource
+            resource_pipe.send(
+                {"status": "granted_write", "resource": shared_resource}
+            )  # Send the resource
         else:
             self.release_write_resource(node_id, resource)
 
@@ -434,30 +458,38 @@ class Master:
                     self.node_processes[node_id].is_alive()
                     and self.active_nodes[node_id]
                     and resource_pipe.poll()
-                ):
-                    message = resource_pipe.recv()
-                    type = message.get("type")
-                    resource = message.get("resource")
-                    if not self.resources.get(resource):
+                ):  # If the node is active and alive
+                    message = resource_pipe.recv()  # Receive the message
+                    type = message.get("type")  # Get the type of the message
+                    resource = message.get("resource")  # Get the resource
+                    if not self.resources.get(
+                        resource
+                    ):  # If the resource does not exist
                         resource_pipe.send(
                             {"status": "error", "message": "Resource not found"}
                         )
                         continue
-                    if type == "request_read":
+                    if type == "request_read":  # If the message is a request to read
                         threading.Thread(
                             target=self.handle_read_request,
                             args=(node_id, resource, resource_pipe),
                         ).start()
 
-                    elif type == "release_read":
+                    elif (
+                        type == "release_read"
+                    ):  # If the message is a request to release read
                         self.release_read_resource(node_id, resource)
                         resource_pipe.send({"status": "released_read"})
-                    elif type == "request_write":
+                    elif (
+                        type == "request_write"
+                    ):  # If the message is a request to write
                         threading.Thread(
                             target=self.handle_write_request,
                             args=(node_id, resource, resource_pipe),
                         ).start()
-                    elif type == "release_write":
+                    elif (
+                        type == "release_write"
+                    ):  # If the message is a request to release write
                         self.release_write_resource(node_id, resource)
                         resource_pipe.send({"status": "released_write"})
             time.sleep(1)
