@@ -6,7 +6,8 @@ import time
 
 
 def parseYaml(parsed_data):
-    if "system" not in parsed_data:
+    # Function to parse the YAML configuration file and extract the necessary information
+    if "system" not in parsed_data:  # Check for root key
         print("Error: La clave 'system' no está presente en los datos.")
         return None, None
 
@@ -53,6 +54,7 @@ def parseYaml(parsed_data):
 
 
 def createResources(parsed_data):
+    # Function to send the HTTP Requests that create the shared resources
     resources = parsed_data["system"].get("shared_resources", [])
     for resource in resources:
         name = resource.get("name", "N/A")
@@ -70,6 +72,8 @@ def createResources(parsed_data):
 
 
 def executeRequests(parsed_data):
+    # Function that sends the HTTP requests to the endpoints specified in the configuration file.
+    # It submits the requests for the sent instructions.
     requests_list = parsed_data["system"].get("requests", [])
     for request in requests_list:
         endpoint = request.get("endpoint", "N/A")
@@ -82,7 +86,7 @@ def executeRequests(parsed_data):
 
         headers = {"Content-Type": "application/json"}
 
-        # Ejecutar la solicitud HTTP
+        # Execute the HTTP Request
         for i in range(times):
             try:
                 if method == "GET":
@@ -105,25 +109,26 @@ def executeRequests(parsed_data):
                     print(f"  - Método {method} no soportado.")
                     break
 
-                # Imprimir el resultado de la solicitud
+                # Print the result of the request
                 print(f"  - Código de respuesta: {response.status_code}")
                 print(f"  - Respuesta: {response.text}")
 
             except requests.RequestException as e:
                 print(f"Error al ejecutar la solicitud: {e}")
 
-            # Pausar antes de ejecutar la próxima solicitud
+            # Pause before executing the next request.
             time.sleep(sleep)
 
 
 def inicializeMaster(node_quantity, node_capacities):
+    # Function to initialize the Master process
     master = Master(node_quantity, node_capacities)
     master.run()
 
 
 if __name__ == "__main__":
     try:
-        with open("Prueba3-3.yaml", "r") as file:
+        with open("Prueba1.yaml", "r") as file:
             parsed_data = yaml.safe_load(file)
     except FileNotFoundError:
         print("El archivo config.yml no se encuentra.")
@@ -138,7 +143,7 @@ if __name__ == "__main__":
         target=inicializeMaster,
         args=(node_quantity, node_capacities),
     )
-    process.start()
+    process.start()  # Start the master process
 
     time.sleep(4)
     print("Master is running")
