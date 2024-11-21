@@ -1006,3 +1006,19 @@ for i in shared_list:
     response += i
 
 print(response)
+
+# archivo = request_read_resource("archivo")
+# try:
+
+#     with open(archivo.path, archivo.mode) as file:
+#         # Read the file until the end
+#         content = file.read()
+#         print(content)
+# except FileNotFoundError:
+#     print("The file 'archivo' does not exist.")
+# except Exception as e:
+#     print(f"An error occurred: {e}")
+
+# release_read_resource("archivo")
+
+# code_string = "archivo = request_read_resource(\"archivo\")\ntry:\n\twith open(archivo.path, archivo.mode) as file:\n\t\t# Read the file until the end\n\t\tcontent = file.read()\n\t\tprint(content)\nexcept FileNotFoundError:\n\tprint(\"The file 'archivo' does not exist.\")\nexcept Exception as e:\n\tprint(f\"An error occurred: {e}\")\n\nrelease_read_resource(\"archivo\")"
