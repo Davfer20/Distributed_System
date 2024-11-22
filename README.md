@@ -31,6 +31,25 @@ if __name__ == "__main__":
 
 ```
 
+## Enlace a video
+
+Se adjunta un video que explica los casos de uso solicitados y las pruebas realizadas:
+https://www.youtube.com/watch?v=TC1m2JYcBTY
+Capítulos:
+0:00 Introducción
+0:10 Arquitectura
+1:40 Ejecución
+1:50 Master
+5:05 Node
+8:23 Caso de Uso 1: Asignación
+10:55 Caso de Uso 2: Recursos compartidos
+14:30 Caso de Uso 3: Manejo de fallos
+17:45 Prueba 1: Asignación y Balanceo
+21:26 Prueba 2: Sincronización de recursos
+25:00 Prueba 3: Manejo de fallos
+29:40 Prueba 4: Escalabilidad
+31:18 Prueba 5: Redistribución
+
 ## Enlace al repositorio
 
 https://github.com/Diego-Granados/Sistema-de-Archivos
