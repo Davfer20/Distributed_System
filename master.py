@@ -314,7 +314,7 @@ class Master:
 
         self.node_idleness = {}  # Dict for node idleness
         self.node_queues = {}  # Dict for node queues
-        self.node_heartbeats = {}  # Dict for node heartbeat pipes
+        self.node_heartbeats = {}  # Dict for node heartbeat shared memory variables
         self.active_nodes = {}  # Dict for active nodes
         self.current_node = 0
         self.logger = logging.getLogger("Master")
