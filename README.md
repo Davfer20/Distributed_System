@@ -8,7 +8,7 @@ Elaborado por:
 - Daniel Granados Retana
 - Diego Granados Retana
 
-## Documentación
+## Documentación y resultado de las pruebas
 
 La documentación principal se encuentra en el PDF titulado: **Documentación_Distributed_System**  
 En este archivo, se encuentra la documentación del diseño y los resultados de las pruebas.
